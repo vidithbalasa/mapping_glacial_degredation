@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Coordinate Picker with Dot</title>
+    <style>
+        .image-container {
+            position: relative;
+            display: inline-block;
+        }
+        .image {
+            max-width: 500px; /* Adjust as needed */
+            cursor: crosshair;
+        }
+        .dot {
+            position: absolute;
+            width: 5px; /* Dot size */
+            height: 5px; /* Dot size */
+            border-radius: 50%;
+            background-color: red; /* Dot color */
+            transform: translate(-50%, -50%); /* Center the dot on the cursor */
+        }
+        #coords {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<input type="file" id="file-input" accept="image/*">
+<div id="image-container" class="image-container">
+    <img id="image" src="#" alt="" style="display: none;" class="image">
+</div>
+<p id="coords"></p>
+<button id="segment-btn" style="display:none;">Segment Image</button>
+<div class="image-container">
+    <img id="output-image" src="#" alt="Segmented Image" style="display: none;" class="image">
+</div>
+<!-- <img id="output-image" src="#" alt="Segmented Image" style="display: none;" class="image"> -->
+
+<script>
+    let lastClick = {x: 0, y: 0};
+
+    function updateImageDisplay() {
+        const fileInput = document.getElementById('file-input');
+        const image = document.getElementById('image');
+        if (fileInput.files && fileInput.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                image.src = e.target.result;
+                image.style.display = 'block';
+                document.getElementById('segment-btn').style.display = 'inline';
+            };
+            reader.readAsDataURL(fileInput.files[0]);
+        }
+    }
+
+    document.getElementById('file-input').addEventListener('change', updateImageDisplay);
+
+    document.getElementById('image').addEventListener('click', function(event) {
+        const rect = event.target.getBoundingClientRect();
+        const scaleX = event.target.naturalWidth / rect.width;   // scale factor for width
+        const scaleY = event.target.naturalHeight / rect.height; // scale factor for height
+        const x = (event.clientX - rect.left) * scaleX; // Apply scale factor for X
+        const y = (event.clientY - rect.top) * scaleY;  // Apply scale factor for Y
+        document.getElementById('coords').textContent = `Coordinates: (${x.toFixed(2)}, ${y.toFixed(2)})`;
+        lastClick = {x: x, y: y};
+
+        // Remove previous dot if it exists
+        const existingDot = document.querySelector('.dot');
+        if (existingDot) {
+            existingDot.remove();
+        }
+
+        // Create a new dot and position it at the click location
+        const dot = document.createElement('div');
+        dot.className = 'dot';
+        dot.style.left = `${x/scaleX}px`;
+        dot.style.top = `${y/scaleY}px`;
+        document.getElementById('image-container').appendChild(dot);
+    });
+
+    document.getElementById('segment-btn').addEventListener('click', function() {
+        const fileInput = document.getElementById('file-input');
+        if (fileInput.files && fileInput.files[0]) {
+            const formData = new FormData();
+            formData.append('image', fileInput.files[0]);
+            formData.append('coordinates', JSON.stringify(lastClick));
+
+            fetch('http://127.0.0.1:5000/segment', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                document.getElementById('output-image').src = url;
+                document.getElementById('output-image').style.display = 'block';
+            })
+            .catch(error => console.error('Error:', error));
+        }
+    });
+</script>
+
+</body>
+</html>
